@@ -27,21 +27,22 @@ Fail-Safe Mode: Includes an "Offline/Mock" fallback service to ensure the dashbo
 
 <h2>🧪 How to Evaluate</h2>
 To verify the system's logic, we recommend the following test sequence:
-
+<br>
 Observe Baseline: Upon loading, the dashboard initializes all zones to a safe 40% occupancy.
-
+<br>
 Trigger Simulation: Toggle the Live Sim switch. Observe the Live Data Inspector (at the bottom) and see the JSON state "breathing" as values fluctuate.
-
+<br>
 Test Decision Logic: Manually increase occupancy in a zone to > 95% and observe the Flow Recommendations panel updating with emergency directives.
-
+<br>
 Log an Incident: Fill out the Field Incident Report and observe the Active Live Operations Log update instantly.
 
-💻 Running Locally
+<h3>💻 Running Locally</h3>
 If you wish to run this locally, ensure you have Node.js installed, then:
 
-Bash
+
+<h3>Bash</h3>
 # Clone the repository
-git clone [YOUR_GITHUB_REPO_URL]
+git clone (https://github.com/kaizo-x/stadium-ops-assistant)
 
 # Install dependencies
 npm install
@@ -59,4 +60,4 @@ State Management: React Hooks (Centralized State)
 
 Logic: Pure TypeScript Decision Engine
 
-Built for the PromptWars challenge | [Your Name/Handle]
+Built for the PromptWars challenge | [Sayali Pagare]
