@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<h1>Smart Stadium Operations Assistant 🏟️</h1>
+A high-performance, real-time operations dashboard designed to manage crowd density and emergency dispatching for large-scale venues.
+<br>
+🚀 Live Demo
+View the Live Operational Dashboard (http://localhost:3000/)
+(Note: If the demo is currently unreachable, please see the "Running Locally" section below.)
+<br>
+💡 The Architecture
+This project was built with a "Logic-First" philosophy. By decoupling the Decision Engine from the UI, the system ensures that safety recommendations are computed with high precision, independent of UI render cycles.
+<br>
+<h3></h3>Logic Layer: A pure TypeScript DecisionEngine that processes zone capacities, calculates real-time density, and issues rerouting directives.</h3>
 
-## Getting Started
+<h3>State Controller: A centralized React state machine that synchronizes simulation ticks, incident reports, and manual gate overrides.</h3>
 
-First, run the development server:
+<h3>Visual Interface: A responsive dashboard built with Tailwind CSS, featuring a "Live Data Inspector" for real-time state verification.</h3>
 
-```bash
+<h2>🛠️ Key Features</h2>
+Real-Time Simulation: Toggle live crowd fluctuations to test how the system responds to "Halftime Rush" or "Egress Evacuation" scenarios.
+<br>
+Incident Dispatching: A streamlined reporting form for stewards to log and categorize medical or security incidents instantly.
+<br>
+Dynamic Recommendations: Automatically suggests gate openings and spectator rerouting when sector density crosses safety thresholds (Safe < 60% → Critical > 95%).
+<br>
+Fail-Safe Mode: Includes an "Offline/Mock" fallback service to ensure the dashboard remains fully functional even in low-connectivity environments.
+
+<h2>🧪 How to Evaluate</h2>
+To verify the system's logic, we recommend the following test sequence:
+
+Observe Baseline: Upon loading, the dashboard initializes all zones to a safe 40% occupancy.
+
+Trigger Simulation: Toggle the Live Sim switch. Observe the Live Data Inspector (at the bottom) and see the JSON state "breathing" as values fluctuate.
+
+Test Decision Logic: Manually increase occupancy in a zone to > 95% and observe the Flow Recommendations panel updating with emergency directives.
+
+Log an Incident: Fill out the Field Incident Report and observe the Active Live Operations Log update instantly.
+
+💻 Running Locally
+If you wish to run this locally, ensure you have Node.js installed, then:
+
+Bash
+# Clone the repository
+git clone [YOUR_GITHUB_REPO_URL]
+
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+⚙️ Tech Stack
+Framework: Next.js 16 (App Router)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Language: TypeScript
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Styling: Tailwind CSS
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+State Management: React Hooks (Centralized State)
 
-## Learn More
+Logic: Pure TypeScript Decision Engine
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built for the PromptWars challenge | [Your Name/Handle]
