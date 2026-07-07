@@ -1,7 +1,9 @@
 <h1>Smart Stadium Operations Assistant 🏟️</h1>
 A high-performance, real-time operations dashboard designed to manage crowd density and emergency dispatching for large-scale venues.
 <br>
+
 🚀 Live Demo
+<br>
 [View the Live Operational Dashboard](http://localhost:3000/)
 (Note: If the demo is currently unreachable, please see the "Running Locally" section below.)
 <br>
