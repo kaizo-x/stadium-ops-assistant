@@ -4,7 +4,7 @@ A high-performance, real-time operations dashboard designed to manage crowd dens
 
 🚀 Live Demo
 <br>
-[View the Live Operational Dashboard](http://localhost:3000/)
+[View the Live Operational Dashboard](https://stadium-ops-assistant.vercel.app)
 (Note: If the demo is currently unreachable, please see the "Running Locally" section below.)
 <br>
 💡 The Architecture
