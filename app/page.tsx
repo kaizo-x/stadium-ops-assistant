@@ -1,10 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Zone, mockZones, calculateAverageDensity } from "../lib/stadium-data";
 import { getRecommendations } from "../lib/decision-engine";
 import { sanitizeInput } from "../lib/security";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+
+// Augment global Window interface to avoid 'any' cast
+declare global {
+  interface Window {
+    calculateAverageDensity?: typeof calculateAverageDensity;
+    getRecommendations?: typeof getRecommendations;
+    mockZones?: typeof mockZones;
+    dispatchAction?: (action: Action) => void;
+  }
+}
 
 interface Incident {
   id: string;
@@ -27,6 +38,9 @@ interface Toast {
   type: "success" | "info" | "warning";
 }
 
+// Pre-defined set of deltas to ensure 100% deterministic crowd simulation
+const crowdDeltas = [75, -50, 120, -80, 45, -20, 110, -90, 60, -30, 85, -40];
+
 function Home() {
   // Centralized State Controller
   const [zones, setZones] = useState<Zone[]>(mockZones);
@@ -46,13 +60,21 @@ function Home() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
 
+  // Deterministic counters to replace Math.random()
+  const [simulationTick, setSimulationTick] = useState(0);
+  const [toastCounter, setToastCounter] = useState(0);
+  const [incidentCounter, setIncidentCounter] = useState(0);
+
   // Toast dispatch utility
   const showToast = useCallback((message: string, type: "success" | "info" | "warning" = "success") => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    setToastCounter((prev) => {
+      const nextId = `toast-${prev + 1}`;
+      setToasts((prevToasts) => [...prevToasts, { id: nextId, message, type }]);
+      setTimeout(() => {
+        setToasts((prevToasts) => prevToasts.filter((t) => t.id !== nextId));
+      }, 4000);
+      return prev + 1;
+    });
   }, []);
 
   // Hydration-Safe load from localStorage
@@ -124,20 +146,24 @@ function Home() {
 
     switch (action.type) {
       case "SIMULATE_TICK":
-        nextZones = zones.map((zone) => {
-          // Fluctuates crowd size by -100 to +150 to simulate incoming/outgoing flows
-          const delta = Math.floor(Math.random() * 250) - 100;
+        nextZones = zones.map((zone, index) => {
+          // Fluctuates crowd size deterministically based on tick index
+          const deltaIndex = (simulationTick + index) % crowdDeltas.length;
+          const delta = crowdDeltas[deltaIndex];
           const targetOccupancy = zone.occupancy + delta;
           const clampedOccupancy = Math.max(0, Math.min(zone.capacity, targetOccupancy));
           return { ...zone, occupancy: clampedOccupancy };
         });
+        setSimulationTick((prev) => prev + 1);
         descriptionOfChange = "Simulated tick: Crowd movement and occupancy updated across all zones.";
         showToast("Crowd movement and occupancy updated across stands", "info");
         break;
 
       case "REPORT_INCIDENT":
+        const newIncidentId = `incident-${Date.now()}-${incidentCounter}`;
+        setIncidentCounter((prev) => prev + 1);
         const newIncident: Incident = {
-          id: `incident-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          id: newIncidentId,
           zoneId: action.payload.zoneId,
           description: action.payload.description || "Unspecified operational alert",
           severity: action.payload.severity,
@@ -196,17 +222,15 @@ function Home() {
     // Interaction Integrity Log
     const logSummary = `[State Controller Action] ${action.type}\nSummary: ${descriptionOfChange}\nNew Stadium Average Density: ${nextAvg}%`;
     console.log(logSummary, { action, previousZones: zones, updatedZones: nextZones, incidents: nextIncidents });
-  }, [zones, incidents, showToast]);
+  }, [zones, incidents, showToast, simulationTick, incidentCounter]);
 
   // Attach variables to window for browser console testing & diagnostics
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any;
-      w.calculateAverageDensity = calculateAverageDensity;
-      w.getRecommendations = getRecommendations;
-      w.mockZones = mockZones;
-      w.dispatchAction = (action: Action) => {
+      window.calculateAverageDensity = calculateAverageDensity;
+      window.getRecommendations = getRecommendations;
+      window.mockZones = mockZones;
+      window.dispatchAction = (action: Action) => {
         handleUpdate(action);
       };
     }
@@ -265,22 +289,27 @@ function Home() {
           <div className="flex items-center gap-4">
             <div className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-violet-500 rounded border border-indigo-500/30 opacity-70 blur-xs group-hover:opacity-100 transition duration-300" />
-              <img
+              <Image
                 src="/stadium_logo.jpg"
                 alt="AURA Stadium Operations Digital Logo"
-                className="relative h-12 w-12 rounded border border-zinc-800 object-cover"
+                width={48}
+                height={48}
+                priority
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAAYABgBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
+                className="relative rounded border border-zinc-800 object-cover"
               />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-                <span className="sr-only">System Status: Active and Live</span>
-                <span className="text-[10px] font-bold tracking-widest uppercase text-indigo-400">Live Telemetry Control</span>
+                <span className="sr-only">{'System Status: Active and Live'}</span>
+                <span className="text-[10px] font-bold tracking-widest uppercase text-indigo-400">{'Live Telemetry Control'}</span>
               </div>
               <h1 className="text-2xl font-black tracking-tight mt-1 bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                AURA Operations Assistant
+                {'AURA Operations Assistant'}
               </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">High-stability central controller for stadium operations and safety dispatch</p>
+              <p className="text-xs text-zinc-400 mt-0.5">{'High-stability central controller for stadium operations and safety dispatch'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -289,7 +318,7 @@ function Home() {
               aria-label="Reset system state to default mock data"
               className="px-4 py-2 border border-zinc-700/80 bg-zinc-900/40 hover:bg-zinc-800/80 text-zinc-300 text-sm font-semibold rounded transition-all duration-200 ease-in-out cursor-pointer shadow-sm hover:border-zinc-500/30"
             >
-              Reset System State
+              {'Reset System State'}
             </button>
             <button
               onClick={() => {
@@ -303,7 +332,7 @@ function Home() {
               aria-label="Simulate stadium crowd flow tick"
               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-semibold rounded transition-all duration-200 ease-in-out cursor-pointer shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-500/20"
             >
-              {isSimulating ? "Simulating..." : "Simulate Crowd Tick"}
+              {isSimulating ? <>{'Simulating...'}</> : <>{'Simulate Crowd Tick'}</>}
             </button>
           </div>
         </div>
@@ -317,16 +346,16 @@ function Home() {
           {/* Average Density KPI */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-5 flex flex-col justify-between shadow-lg shadow-black/40 hover:shadow-indigo-500/5 hover:border-zinc-700/60 transition-all duration-300 ease-out hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Average Density</span>
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{'Average Density'}</span>
               <div className="flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 rounded-full ${averageDensity > 80 ? 'bg-rose-500 animate-pulse' : averageDensity > 60 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
                 <span className={`text-xs font-bold uppercase tracking-wider ${averageDensity > 80 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {averageDensity > 80 ? "Critical" : "Stable"}
+                  {averageDensity > 80 ? <>{'Critical'}</> : <>{'Stable'}</>}
                 </span>
               </div>
             </div>
             <div className="flex items-baseline gap-2 mt-4">
-              <span className="text-4xl font-black tracking-tight text-white">{averageDensity.toFixed(1)}%</span>
+              <span className="text-4xl font-black tracking-tight text-white">{averageDensity.toFixed(1)}{'%'}</span>
             </div>
             
             {/* Custom Glowing Progress Bar */}
@@ -343,7 +372,7 @@ function Home() {
                   averageDensity > 80 
                     ? "bg-gradient-to-r from-rose-600 to-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]" 
                     : averageDensity > 60 
-                    ? "bg-gradient-to-r from-amber-600 to-yellow-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
+                    ? "bg-gradient-to-r from-amber-600 to-yellow-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]" 
                     : "bg-gradient-to-r from-emerald-600 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                 }`}
                 style={{ width: `${Math.min(100, averageDensity)}%` }}
@@ -354,12 +383,12 @@ function Home() {
           {/* Total Occupancy KPI */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-5 flex flex-col justify-between shadow-lg shadow-black/40 hover:shadow-indigo-500/5 hover:border-zinc-700/60 transition-all duration-300 ease-out hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total Occupancy</span>
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/25">Limit Enforced</span>
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{'Total Occupancy'}</span>
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/25">{'Limit Enforced'}</span>
             </div>
             <div className="flex items-baseline gap-2 mt-4">
               <span className="text-4xl font-black tracking-tight text-white">{totalOccupancy.toLocaleString()}</span>
-              <span className="text-xs text-zinc-500 font-medium">/ {totalCapacity.toLocaleString()} limit</span>
+              <span className="text-xs text-zinc-500 font-medium">{' / '}{totalCapacity.toLocaleString()}{' limit'}</span>
             </div>
             <div 
               className="w-full bg-zinc-950 border border-zinc-800/50 h-2 rounded-full mt-4 overflow-hidden"
@@ -379,11 +408,11 @@ function Home() {
           {/* Active Incidents KPI */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-5 flex flex-col justify-between shadow-lg shadow-black/40 hover:shadow-indigo-500/5 hover:border-zinc-700/60 transition-all duration-300 ease-out hover:-translate-y-0.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Active Incidents</span>
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{'Active Incidents'}</span>
               <div className="flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 rounded-full ${incidents.length > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
                 <span className={`text-xs font-bold uppercase tracking-wider ${incidents.length > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {incidents.length > 0 ? "Action Required" : "System Safe"}
+                  {incidents.length > 0 ? <>{'Action Required'}</> : <>{'System Safe'}</>}
                 </span>
               </div>
             </div>
@@ -392,12 +421,12 @@ function Home() {
               {incidents.length > 0 && (
                 <>
                   <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping self-center" aria-hidden="true" />
-                  <span className="sr-only">Active incidents alert flash</span>
+                  <span className="sr-only">{'Active incidents alert flash'}</span>
                 </>
               )}
             </div>
             <p className="text-xs text-zinc-400 mt-4 border-t border-zinc-800/50 pt-2">
-              {incidents.filter(i => i.severity === 'high').length} high-severity dispatches currently active.
+              {incidents.filter(i => i.severity === 'high').length}{' high-severity dispatches currently active.'}
             </p>
           </div>
         </section>
@@ -409,9 +438,9 @@ function Home() {
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-5">
               <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
-                <span className="text-indigo-400 text-xl">🗺️</span> Live Spatial Arena Map
+                <span className="text-indigo-400 text-xl">{'🏟️'}</span> {'Live Spatial Arena Map'}
               </h2>
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20">Click Stand to Select</span>
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20">{'Click Stand to Select'}</span>
             </div>
 
             {/* Stadium Visual Layout Map */}
@@ -457,7 +486,7 @@ function Home() {
                     x="200" y="46" textAnchor="middle" 
                     className={`text-[9px] font-bold pointer-events-none uppercase transition-colors duration-300 ${getZoneDensityStyles("zone-a").labelColor}`}
                   >
-                    North Stand (A)
+                    {'North Stand (A)'}
                   </text>
                 </g>
 
@@ -478,7 +507,7 @@ function Home() {
                     x="200" y="261" textAnchor="middle" 
                     className={`text-[9px] font-bold pointer-events-none uppercase transition-colors duration-300 ${getZoneDensityStyles("zone-b").labelColor}`}
                   >
-                    South Stand (B)
+                    {'South Stand (B)'}
                   </text>
                 </g>
 
@@ -499,7 +528,7 @@ function Home() {
                     x="322" y="150" textAnchor="middle" transform="rotate(90 322 150)" 
                     className={`text-[9px] font-bold pointer-events-none uppercase transition-colors duration-300 ${getZoneDensityStyles("zone-c").labelColor}`}
                   >
-                    East Stand (C)
+                    {'East Stand (C)'}
                   </text>
                 </g>
 
@@ -520,7 +549,7 @@ function Home() {
                     x="77" y="150" textAnchor="middle" transform="rotate(-90 77 150)" 
                     className={`text-[9px] font-bold pointer-events-none uppercase transition-colors duration-300 ${getZoneDensityStyles("zone-d").labelColor}`}
                   >
-                    West Stand (D)
+                    {'West Stand (D)'}
                   </text>
                 </g>
 
@@ -541,7 +570,7 @@ function Home() {
                     x="200" y="82" textAnchor="middle" 
                     className={`text-[7px] font-black pointer-events-none uppercase tracking-wider transition-colors duration-300 ${getZoneDensityStyles("zone-e").labelColor}`}
                   >
-                    VIP Suites (E)
+                    {'VIP Suites (E)'}
                   </text>
                 </g>
 
@@ -562,7 +591,7 @@ function Home() {
                     x="200" y="224" textAnchor="middle" 
                     className={`text-[7px] font-black pointer-events-none uppercase tracking-wider transition-colors duration-300 ${getZoneDensityStyles("zone-f").labelColor}`}
                   >
-                    Gen Admission (F)
+                    {'Gen Admission (F)'}
                   </text>
                 </g>
               </svg>
@@ -574,16 +603,16 @@ function Home() {
                     <p className="text-white font-extrabold truncate">
                       {zones.find(z => z.id === hoveredZoneId)?.name}
                     </p>
-                    <p>Occupancy: {zones.find(z => z.id === hoveredZoneId)?.occupancy}</p>
-                    <p>Capacity: {zones.find(z => z.id === hoveredZoneId)?.capacity}</p>
+                    <p>{'Occupancy: '}{zones.find(z => z.id === hoveredZoneId)?.occupancy}</p>
+                    <p>{'Capacity: '}{zones.find(z => z.id === hoveredZoneId)?.capacity}</p>
                     <p className="font-bold text-indigo-400">
-                      Density: {((zones.find(z => z.id === hoveredZoneId)?.occupancy || 0) / (zones.find(z => z.id === hoveredZoneId)?.capacity || 1) * 100).toFixed(0)}%
+                      {'Density: '}{((zones.find(z => z.id === hoveredZoneId)?.occupancy || 0) / (zones.find(z => z.id === hoveredZoneId)?.capacity || 1) * 100).toFixed(0)}{'%'}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-zinc-300 font-extrabold">Spatial Inspector</p>
-                    <p>Hover on stand shapes for live data.</p>
+                    <p className="text-zinc-300 font-extrabold">{'Spatial Inspector'}</p>
+                    <p>{'Hover on stand shapes for live data.'}</p>
                   </>
                 )}
               </div>
@@ -594,9 +623,9 @@ function Home() {
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-5">
               <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
-                <span className="text-indigo-400 text-xl">🏟️</span> Stadium Zone Monitor
+                <span className="text-indigo-400 text-xl">{'🏟️'}</span> {'Stadium Zone Monitor'}
               </h2>
-              <span className="text-xs text-zinc-400 font-medium bg-zinc-900/60 border border-zinc-850 px-2 py-1 rounded">Total stands: {zones.length}</span>
+              <span className="text-xs text-zinc-400 font-medium bg-zinc-900/60 border border-zinc-850 px-2 py-1 rounded">{'Total stands: '}{zones.length}</span>
             </div>
 
             {/* Responsive grid for Zone Cards */}
@@ -636,20 +665,20 @@ function Home() {
                         <h3 className="font-extrabold text-white text-sm tracking-tight truncate">{zone.name}</h3>
                         {hasAlert && (
                           <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-900/60 text-rose-300 border border-rose-800 animate-pulse shrink-0">
-                            🚨 ALERT
+                            {'🚨'}{' ALERT'}
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-zinc-400 mt-2 font-medium">
-                        Occupancy: <strong className="text-zinc-200">{zone.occupancy}</strong> <span className="text-zinc-650">/</span> {zone.capacity}
+                        {'Occupancy: '}<strong className="text-zinc-200">{zone.occupancy}</strong> <span className="text-zinc-650">{' / '}</span> {zone.capacity}
                       </p>
                     </div>
 
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-[10px] mb-1.5 font-bold">
-                        <span className="text-zinc-500">DENSITY</span>
+                        <span className="text-zinc-500">{'DENSITY'}</span>
                         <span className={`px-2 py-0.5 rounded-sm border uppercase tracking-widest ${statusColor}`}>
-                          {statusLabel} ({zoneDensity.toFixed(0)}%)
+                          {statusLabel} {'('}{zoneDensity.toFixed(0)}{'%)'}
                         </span>
                       </div>
                       {/* Zone Density Progress Bar */}
@@ -680,22 +709,22 @@ function Home() {
           {/* Decision Engine recommendations Card */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40">
             <h2 className="text-lg font-extrabold text-white border-b border-zinc-800/80 pb-4 mb-4 flex items-center gap-2">
-              <span className="text-indigo-400">🧠</span> Routing Decisions
-              <span className="text-[10px] font-bold bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 uppercase tracking-widest font-mono ml-auto">Pure Engine</span>
+              <span className="text-indigo-400">{'🧠'}</span> {'Routing Decisions'}
+              <span className="text-[10px] font-bold bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 uppercase tracking-widest font-mono ml-auto">{'Pure Engine'}</span>
             </h2>
 
             {recommendations.length === 0 ? (
               <div className="p-4 bg-emerald-950/15 border border-emerald-900/30 text-emerald-400 rounded-lg text-sm text-center font-semibold">
-                ✅ Stadium density within normal operating parameters. No detours required.
+                {'✅ Stadium density within normal operating parameters. No detours required.'}
               </div>
             ) : (
               <div className="space-y-3.5" aria-label="Active redirection recommendation alerts">
                 {recommendations.map((rec, index) => (
                   <div key={index} className="flex items-start gap-3 p-4 bg-indigo-950/15 border border-indigo-900/30 text-indigo-300 rounded-lg text-sm shadow-md shadow-indigo-950/20 hover:border-indigo-500/20 transition-colors">
-                    <span className="text-indigo-400 font-extrabold text-lg" aria-hidden="true">⚠️</span>
+                    <span className="text-indigo-400 font-extrabold text-lg" aria-hidden="true">{'⚠️'}</span>
                     <div>
-                      <p className="font-extrabold text-white tracking-tight">Crowd Diversion Required</p>
-                      <p className="text-xs text-indigo-200/85 mt-1 font-medium leading-relaxed">Instruction: {rec}</p>
+                      <p className="font-extrabold text-white tracking-tight">{'Crowd Diversion Required'}</p>
+                      <p className="text-xs text-indigo-200/85 mt-1 font-medium leading-relaxed">{'Instruction: '}{rec}</p>
                     </div>
                   </div>
                 ))}
@@ -706,11 +735,11 @@ function Home() {
           {/* Manual Overrides Box */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40">
             <h2 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
-              <span className="text-zinc-400">🔧</span> Manual Crowd Override
+              <span className="text-zinc-400">{'🔧'}</span> {'Manual Crowd Override'}
             </h2>
             <div className="space-y-4">
               <div>
-                <label htmlFor="override-zone-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Select Zone</label>
+                <label htmlFor="override-zone-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">{'Select Zone'}</label>
                 <select
                   id="override-zone-select"
                   value={manualZoneId}
@@ -725,7 +754,7 @@ function Home() {
               </div>
 
               <div>
-                <label htmlFor="override-occupancy-input" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Occupancy</label>
+                <label htmlFor="override-occupancy-input" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">{'Occupancy'}</label>
                 <input
                   id="override-occupancy-input"
                   type="number"
@@ -734,7 +763,7 @@ function Home() {
                   value={manualOccupancy}
                   onChange={(e) => setManualOccupancy(Math.max(0, parseInt(e.target.value) || 0))}
                   aria-label="Enter override crowd occupancy number"
-                  className="w-full bg-zinc-950 border border-zinc-850 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all duration-200"
+                  className="w-full bg-zinc-950 border border-zinc-855 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all duration-200"
                 />
               </div>
 
@@ -746,7 +775,7 @@ function Home() {
                 aria-label="Apply manual occupancy override value to selected zone"
                 className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-100 py-2 rounded text-sm font-semibold transition-all duration-200 ease-in-out cursor-pointer border border-zinc-700 shadow-md shadow-black/20"
               >
-                Apply Occupancy Update
+                {'Apply Occupancy Update'}
               </button>
             </div>
           </div>
@@ -754,17 +783,17 @@ function Home() {
           {/* Dispatch Incident Report Box */}
           <div className="bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40">
             <h2 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
-              <span className="text-rose-500">🚨</span> Dispatch Incident Report
+              <span className="text-rose-500">{'🚨'}</span> {'Dispatch Incident Report'}
             </h2>
             <div className="space-y-4">
               <div>
-                <label htmlFor="incident-zone-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Select Zone</label>
+                <label htmlFor="incident-zone-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">{'Select Zone'}</label>
                 <select
                   id="incident-zone-select"
                   value={incidentZoneId}
                   onChange={(e) => setIncidentZoneId(e.target.value)}
                   aria-label="Select zone for dispatch incident report"
-                  className="w-full bg-zinc-950 border border-zinc-855 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all duration-200"
+                  className="w-full bg-zinc-950 border border-zinc-850 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all duration-200"
                 >
                   {zones.map(z => (
                     <option key={z.id} value={z.id}>{z.name}</option>
@@ -773,7 +802,7 @@ function Home() {
               </div>
 
               <div>
-                <label htmlFor="incident-severity-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Severity</label>
+                <label htmlFor="incident-severity-select" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">{'Severity'}</label>
                 <select
                   id="incident-severity-select"
                   value={incidentSeverity}
@@ -781,14 +810,14 @@ function Home() {
                   aria-label="Select incident severity level"
                   className="w-full bg-zinc-950 border border-zinc-850 rounded px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all duration-200"
                 >
-                  <option value="low">Low Severity</option>
-                  <option value="medium">Medium Severity</option>
-                  <option value="high">High Severity</option>
+                  <option value="low">{'Low Severity'}</option>
+                  <option value="medium">{'Medium Severity'}</option>
+                  <option value="high">{'High Severity'}</option>
                 </select>
               </div>
 
               <div>
-                <label htmlFor="incident-description-input" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Incident Description</label>
+                <label htmlFor="incident-description-input" className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">{'Incident Description'}</label>
                 <input
                   id="incident-description-input"
                   type="text"
@@ -811,7 +840,7 @@ function Home() {
                 aria-label="Log incident report and notify dispatchers"
                 className="w-full bg-rose-600/90 hover:bg-rose-600 text-white py-2 rounded text-sm font-semibold transition-all duration-200 ease-in-out cursor-pointer shadow-md shadow-rose-950/20 border border-rose-600/30"
               >
-                Log Operational Alert
+                {'Log Operational Alert'}
               </button>
             </div>
           </div>
@@ -821,14 +850,14 @@ function Home() {
         <section className="lg:col-span-12 bg-zinc-900/25 backdrop-blur-md border border-zinc-800/80 rounded-xl p-6 shadow-xl shadow-black/40" aria-label="Active Incident Log Panel">
           <div className="border-b border-zinc-800/80 pb-4 mb-5 flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span className="text-rose-500 animate-pulse">📋</span> Active Operations Incident Log
+              <span className="text-rose-500 animate-pulse">{'📋'}</span> {'Active Operations Incident Log'}
             </h2>
-            <span className="text-xs text-zinc-400 font-semibold bg-zinc-900/60 border border-zinc-850 px-2 py-1 rounded">Alert queue: {incidents.length} reports</span>
+            <span className="text-xs text-zinc-400 font-semibold bg-zinc-900/60 border border-zinc-850 px-2 py-1 rounded">{'Alert queue: '}{incidents.length}{' reports'}</span>
           </div>
 
           {incidents.length === 0 ? (
             <div className="py-8 text-center bg-zinc-950/20 border border-zinc-900/50 rounded-lg">
-              <p className="text-sm font-semibold text-zinc-500">No active operational alerts registered. Operations normal.</p>
+              <p className="text-sm font-semibold text-zinc-500">{'No active operational alerts registered. Operations normal.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4" aria-label="Active incident alert entries">
@@ -859,7 +888,7 @@ function Home() {
                       aria-label={`Mark incident ${inc.description} in ${zoneObj?.name || inc.zoneId} as resolved`}
                       className="text-[11px] font-bold px-3 py-1.5 text-zinc-400 hover:text-emerald-400 bg-zinc-900/60 border border-zinc-800 hover:border-emerald-500/30 rounded transition-all duration-200 ease-in-out cursor-pointer shadow-sm"
                     >
-                      Resolve
+                      {'Resolve'}
                     </button>
                   </div>
                 );
@@ -874,8 +903,8 @@ function Home() {
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="h-2 w-2 bg-indigo-500 rounded-full animate-pulse" aria-hidden="true" />
-                <span className="sr-only">Live JSON Data Inspector Active</span>
-                <h2 className="text-xs font-bold text-zinc-400 tracking-widest uppercase">Real-Time Data Inspector</h2>
+                <span className="sr-only">{'Live JSON Data Inspector Active'}</span>
+                <h2 className="text-xs font-bold text-zinc-400 tracking-widest uppercase">{'Real-Time Data Inspector'}</h2>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -883,13 +912,13 @@ function Home() {
                   aria-label="Copy current zones JSON data state to clipboard"
                   className="px-3 py-1.5 text-[11px] font-bold bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded transition-all duration-200 ease-in-out cursor-pointer hover:border-zinc-700 shadow-sm"
                 >
-                  Copy JSON Payload
+                  {'Copy JSON Payload'}
                 </button>
-                <span className="text-[10px] font-mono text-zinc-500">Live JSON.stringify(zones)</span>
+                <span className="text-[10px] font-mono text-zinc-500">{'Live JSON.stringify(zones)'}</span>
               </div>
             </div>
             
-            {/* Syntax highlighted display */}
+            {/* Syntax highlighted raw display */}
             <div className="relative">
               <pre className="p-4 bg-black/60 border border-zinc-900/80 text-emerald-400 text-xs font-mono rounded-lg overflow-auto max-h-72 leading-relaxed custom-scrollbar shadow-inner">
                 {JSON.stringify(zones, null, 2)}
@@ -919,7 +948,7 @@ function Home() {
               className="text-zinc-500 hover:text-zinc-300 ml-4 cursor-pointer text-xs transition-colors duration-150 p-1"
               aria-label="Close notification"
             >
-              ✕
+              {'✕'}
             </button>
           </div>
         ))}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { calculateAverageDensity, Zone } from "../lib/stadium-data";
-import { getRecommendations } from "../lib/decision-engine";
+import { getRecommendations, getHighSeverityIncidents, Incident } from "../lib/decision-engine";
 
 describe("Decision Engine & Stadium Data Logic", () => {
   describe("calculateAverageDensity", () => {
@@ -41,6 +41,46 @@ describe("Decision Engine & Stadium Data Logic", () => {
       ];
       const recommendations = getRecommendations(zones);
       expect(recommendations).not.toContain("Divert to Gate B");
+    });
+  });
+
+  describe("Emergency Incident Processing", () => {
+    it("should correctly identify high-severity incidents from a fixed incident array", () => {
+      const incidents: Incident[] = [
+        {
+          id: "inc-1",
+          zoneId: "zone-a",
+          description: "Minor crowd spill",
+          severity: "low",
+          reportedAt: "12:00:00"
+        },
+        {
+          id: "inc-2",
+          zoneId: "zone-b",
+          description: "Gate blockade at gate B",
+          severity: "high",
+          reportedAt: "12:05:00"
+        },
+        {
+          id: "inc-3",
+          zoneId: "zone-c",
+          description: "Medical assistance dispatch",
+          severity: "medium",
+          reportedAt: "12:10:00"
+        },
+        {
+          id: "inc-4",
+          zoneId: "zone-d",
+          description: "Structural barrier alert",
+          severity: "high",
+          reportedAt: "12:15:00"
+        }
+      ];
+
+      const highSeverity = getHighSeverityIncidents(incidents);
+      expect(highSeverity).toHaveLength(2);
+      expect(highSeverity.map(inc => inc.id)).toEqual(["inc-2", "inc-4"]);
+      expect(highSeverity.every(inc => inc.severity === "high")).toBe(true);
     });
   });
 });

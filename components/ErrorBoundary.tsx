@@ -26,7 +26,11 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#09090b] text-[#f4f4f5] flex items-center justify-center p-6 font-sans">
+        <div 
+          className="min-h-screen bg-[#09090b] text-[#f4f4f5] flex items-center justify-center p-6 font-sans"
+          role="alert"
+          aria-live="assertive"
+        >
           <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center space-y-4 shadow-xl shadow-rose-950/10">
             <div className="text-rose-500 text-5xl">⚠️</div>
             <h1 className="text-xl font-bold tracking-tight text-white">System Operational Error</h1>
