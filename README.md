@@ -1,6 +1,6 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## 🚀 Getting Started
 
 First, run the development server:
 
@@ -16,21 +16,37 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🧪 Testing Suite (Vitest)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+We use **Vitest** for automated unit testing of our decision engine and operations logic.
 
-## Learn More
+### Running Tests
+To execute the test suite once:
+```bash
+npm test
+```
 
-To learn more about Next.js, take a look at the following resources:
+To run tests in watch mode during development:
+```bash
+npx vitest
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The test files reside in the [`__tests__`](file:///c:/Users/Sayali/OneDrive/Desktop/stadium-ops-assistant/__tests__) directory. They validate:
+1. `calculateAverageDensity` boundary values (normal states, empty arrays, division-by-zero stand capacities).
+2. `getRecommendations` decision boundary rules (e.g., Gate detour redirects when capacity exceeds 80%).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛡️ Security Implementation
 
-## Deploy on Vercel
+We prioritize application stability and dispatcher input safety:
+1. **Security Headers**: Defined custom headers in [`next.config.ts`](file:///c:/Users/Sayali/OneDrive/Desktop/stadium-ops-assistant/next.config.ts) to enforce:
+   - **Content Security Policy (CSP)**: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';`
+   - **Clickjacking Protection**: `X-Frame-Options: DENY`
+   - **MIME Sniffing Prevention**: `X-Content-Type-Options: nosniff`
+   - **Referrer Control**: `Referrer-Policy: strict-origin-when-cross-origin`
+2. **Input Sanitization**: Operational incident descriptions are sanitized on submission to strip dangerous HTML tags and escape active characters to prevent XSS/Script Injection. The sanitization logic is located in [`lib/security.ts`](file:///c:/Users/Sayali/OneDrive/Desktop/stadium-ops-assistant/lib/security.ts).
+3. **No Hardcoded Keys**: The project contains zero hardcoded API keys or secrets. Check [`env.example`](file:///c:/Users/Sayali/OneDrive/Desktop/stadium-ops-assistant/.env.example) for recommended variables.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📊 Challenge Compliance
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A comprehensive mapping of features to the tournament challenge requirements is maintained in [`COMPLIANCE.md`](file:///c:/Users/Sayali/OneDrive/Desktop/stadium-ops-assistant/COMPLIANCE.md).
+
